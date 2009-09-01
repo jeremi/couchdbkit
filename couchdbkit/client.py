@@ -248,7 +248,9 @@ class Database(object):
         if wrapper is not None:
             if not callable(wrapper):
                 raise TypeError("wrapper isn't a callable")
-            return wrapper(doc)
+            wrapped = wrapper(doc)
+            wrapped._db = self
+            return wrapped
         
         return doc
 
@@ -753,7 +755,7 @@ class ViewResults(object):
         else:
             params['key'] = key
         
-        return ViewResults(self.view, params)
+        return ViewResults(self.view, **params)
         
     def __iter__(self):
         return self.iterator()

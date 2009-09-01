@@ -22,6 +22,7 @@ import datetime
 import decimal
 import re
 import warnings
+import logging
 
 from couchdbkit.client import Database
 from couchdbkit.schema import properties as p
@@ -178,11 +179,12 @@ class DocumentSchema(object):
         start with '_') a,d add it to `_dynamic_properties` dict. If value is 
         a list or a dict we use LazyList and LazyDict to maintain in the value.
         """
-        
         if key == "_id" and valid_id(value):
             self._doc['_id'] = value
+        elif key == "_rev":
+            self._doc['_rev'] = value
         else:
-            check_reserved_words(key)
+            #check_reserved_words(key)
             if not hasattr( self, key ) and not self._allow_dynamic_properties:
                 raise AttributeError("%s is not defined in schema (not a valid property)" % key)
             
@@ -209,7 +211,6 @@ class DocumentSchema(object):
                     elif not isinstance(self._doc[key], list):
                         self._doc[key] = []
                     value = LazyList(value, self._doc[key])
-                    
                 self._dynamic_properties[key] = value
 
                 if not isinstance(value, (p.Property,)) and \
@@ -218,6 +219,8 @@ class DocumentSchema(object):
                     if callable(value):
                         value = value()
                     self._doc[key] = convert_property(value)
+                else:
+                    self._doc[key] = value_to_json(value)
             else:
                 object.__setattr__(self, key, value)
 
@@ -439,6 +442,7 @@ class DocumentBase(DocumentSchema):
             raise TypeError("doc database required to save document")
         
         doc = self.to_json()
+        logging.info(doc)
         self._db.save_doc(doc, **params)
         if '_id' in doc and '_rev' in doc:
             self._doc.update({'_id': doc['_id'], '_rev': doc['_rev']})
@@ -541,7 +545,7 @@ class AttachmentMixin(object):
         """
         if not hasattr(self, '_db'):
             raise TypeError("doc database required to save document")
-        return self.__class__._db.put_attachment(self, content, name=name,
+        return self._db.put_attachment(self, content, name=name,
             content_type=content_type, content_length=content_length)
 
     def delete_attachment(self, name):
@@ -553,7 +557,7 @@ class AttachmentMixin(object):
         """
         if not hasattr(self, '_db'):
             raise TypeError("doc database required to save document")
-        return self.__class__._db.delete_attachment(self, name)
+        return self._db.delete_attachment(self, name)
 
     def fetch_attachment(self, name):
         """ get attachment in a adocument
@@ -564,7 +568,7 @@ class AttachmentMixin(object):
         """
         if not hasattr(self, '_db'):
             raise TypeError("doc database required to save document")
-        return self.__class__._db.fetch_attachment(self, name)
+        return self._db.fetch_attachment(self, name)
         
         
 class QueryMixin(object):
